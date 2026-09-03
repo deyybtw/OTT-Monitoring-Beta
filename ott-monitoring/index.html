@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#04070d">
+<title>TVRI OTT MONITORING — 31 Channel</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<style>
+:root{
+  --bg:#04070d;--panel:#0a101a;--line:rgba(255,255,255,.10);
+  --text:#f5f8fc;--muted:#8090a6;--online:#38d27e;--offline:#ff4858;
+  --loading:#f6c84c;--blue:#36a9ff
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#04070d;color:var(--text);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{background:radial-gradient(circle at 50% 0%,rgba(40,129,215,.12),transparent 28%),linear-gradient(180deg,#060b13,#04070d 35%)}
+button{font:inherit;color:inherit}
+header{
+height:68px;position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+padding:0 24px;border-bottom:1px solid var(--line);background:rgba(4,7,13,.88);backdrop-filter:blur(16px)
+}
+.brand{display:flex;align-items:center;gap:11px}
+.brand-mark{width:38px;height:38px;border-radius:50%;background:linear-gradient(145deg,#08a9f1,#315ce9);
+position:relative;box-shadow:0 0 24px rgba(54,169,255,.22)}
+.brand-mark:after{content:"";position:absolute;inset:9px;border:3px solid white;border-radius:50%}
+.brand b{font-size:14px;letter-spacing:.7px}
+.brand small{display:block;color:var(--muted);font-size:9px;letter-spacing:1.4px;margin-top:2px}
+.live-pill{display:flex;align-items:center;gap:7px;border:1px solid rgba(255,72,88,.28);
+background:rgba(255,72,88,.08);color:#ff7f8a;border-radius:999px;padding:7px 10px;font-size:10px;font-weight:850;letter-spacing:.9px}
+.live-dot{width:7px;height:7px;background:var(--offline);border-radius:50%;animation:pulse 1.3s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,72,88,.55)}70%{box-shadow:0 0 0 7px rgba(255,72,88,0)}100%{box-shadow:0 0 0 0 rgba(255,72,88,0)}}
+
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 22px 12px}
+.summary{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.counter{display:flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid var(--line);
+background:rgba(255,255,255,.035);border-radius:9px;font-size:10px;color:#b9c4d1}
+.counter i{width:7px;height:7px;border-radius:50%;display:block}
+.counter.online i{background:var(--online)} .counter.offline i{background:var(--offline)}
+.counter.loading i{background:var(--loading)} .counter.total i{background:var(--blue)}
+.actions{display:flex;gap:8px}
+.action{border:1px solid var(--line);background:rgba(255,255,255,.04);padding:8px 11px;border-radius:9px;cursor:pointer;font-size:10px;font-weight:750}
+.action:hover{background:rgba(255,255,255,.09)}
+
+.monitor-grid{
+display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-auto-flow:dense;gap:8px;padding:0 12px 20px
+}
+.tile{position:relative;min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:10px;background:#000;
+box-shadow:0 8px 22px rgba(0,0,0,.22);aspect-ratio:16/9}
+.tile video{width:100%;height:100%;display:block;object-fit:contain;background:#000}
+.tile:fullscreen{border-radius:0}.tile:fullscreen video{object-fit:contain}
+.tile-top{position:absolute;left:7px;right:7px;top:7px;z-index:6;display:flex;align-items:center;justify-content:space-between;gap:6px;pointer-events:none}
+.ch-label{max-width:75%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 6px;border-radius:6px;background:rgba(0,0,0,.64);backdrop-filter:blur(8px);font-size:9px;font-weight:780}
+.status{display:flex;align-items:center;gap:4px;padding:4px 6px;border-radius:999px;background:rgba(0,0,0,.68);font-size:8px;font-weight:900;letter-spacing:.45px}
+.status:before{content:"";width:5px;height:5px;border-radius:50%;background:var(--loading)}
+.status.online:before{background:var(--online)}.status.offline:before{background:var(--offline)}
+.tile-bottom{position:absolute;z-index:7;left:0;right:0;bottom:0;display:flex;align-items:center;gap:5px;padding:22px 7px 6px;background:linear-gradient(transparent,rgba(0,0,0,.82));opacity:0;transition:.16s}
+.tile:hover .tile-bottom{opacity:1}
+.mini-btn{width:28px;height:26px;border:0;border-radius:6px;background:rgba(255,255,255,.12);cursor:pointer;display:grid;place-items:center;font-size:11px}
+.mini-btn:hover{background:rgba(255,255,255,.22)}
+.tile-spacer{flex:1}.tile-no{font-size:8px;color:#c6d0dc;background:rgba(255,255,255,.10);padding:4px 6px;border-radius:5px}
+.tile-error{position:absolute;inset:0;z-index:5;display:none;place-items:center;text-align:center;padding:20px;background:linear-gradient(135deg,#130a0d,#07090d)}
+.tile.offline .tile-error{display:grid}
+.tile-error strong{display:block;font-size:11px;margin-bottom:4px;color:#ff8c96}.tile-error span{font-size:8px;color:#8f9cad}
+
+.clock-tile{
+grid-column:3/span 2;grid-row:3/span 2;aspect-ratio:auto;min-height:100%;
+display:flex;align-items:center;justify-content:center;text-align:center;border-color:rgba(54,169,255,.23);
+background:radial-gradient(circle at 50% 45%,rgba(54,169,255,.15),transparent 43%),linear-gradient(145deg,#0c1725,#07101b);
+box-shadow:0 0 0 1px rgba(54,169,255,.06),0 25px 60px rgba(0,0,0,.4)
+}
+.clock-inner{padding:22px;width:100%}
+.clock-kicker{color:#66c3ff;font-size:9px;font-weight:900;letter-spacing:2.4px;margin-bottom:9px}
+.clock-time{font-variant-numeric:tabular-nums;font-size:clamp(36px,4.5vw,82px);font-weight:250;letter-spacing:2px;line-height:1}
+.clock-seconds{color:#63c4ff;font-weight:650}
+.clock-date{font-size:clamp(11px,1.2vw,17px);font-weight:650;letter-spacing:1.5px;margin-top:12px}
+.clock-day{color:var(--muted);font-size:10px;margin-top:5px;text-transform:uppercase;letter-spacing:1.5px}
+.clock-zone{margin-top:14px;display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:8px;color:#9fb1c7}
+.clock-zone:before{content:"";width:5px;height:5px;border-radius:50%;background:var(--online)}
+footer{color:#65758a;text-align:center;font-size:9px;padding:0 18px 20px;letter-spacing:.4px}
+
+@media(max-width:1250px){
+.monitor-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.clock-tile{grid-column:2/span 2;grid-row:4/span 2}
+}
+@media(max-width:800px){
+header{height:60px;padding:0 14px}.brand small{display:none}
+.toolbar{padding:12px 10px 10px;align-items:flex-start}.actions{flex-wrap:wrap;justify-content:flex-end}
+.monitor-grid{grid-template-columns:repeat(2,minmax(0,1fr));padding:0 7px 16px;gap:6px}
+.clock-tile{grid-column:1/span 2;grid-row:auto;min-height:200px}.clock-time{font-size:52px}
+}
+@media(max-width:480px){
+.live-pill{display:none}.toolbar{display:block}.actions{margin-top:8px;justify-content:flex-start}
+.monitor-grid{grid-template-columns:1fr}.clock-tile{grid-column:1;min-height:180px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="brand-mark"></div>
+    <div><b>TVRI OTT MONITORING</b><small>REALTIME HLS MULTIVIEW • 31 CHANNEL</small></div>
+  </div>
+  <div class="live-pill"><span class="live-dot"></span> LIVE MONITORING</div>
+</header>
+
+<section class="toolbar">
+  <div class="summary">
+    <div class="counter total"><i></i><span id="totalCount">31 TOTAL</span></div>
+    <div class="counter online"><i></i><span id="onlineCount">0 ONLINE</span></div>
+    <div class="counter loading"><i></i><span id="loadingCount">31 LOADING</span></div>
+    <div class="counter offline"><i></i><span id="offlineCount">0 OFFLINE</span></div>
+  </div>
+  <div class="actions">
+    <button class="action" id="reloadAll">↻ Reload All</button>
+    <button class="action" id="muteAll">🔇 Mute All</button>
+    <button class="action" id="pauseAll">⏸ Pause All</button>
+  </div>
+</section>
+
+<main class="monitor-grid" id="monitorGrid">
+  <section class="tile clock-tile" id="clockTile">
+    <div class="clock-inner">
+      <div class="clock-kicker">MASTER CLOCK</div>
+      <div class="clock-time"><span id="clockHM">00:00</span><span class="clock-seconds" id="clockS">:00</span></div>
+      <div class="clock-date" id="clockDate">00 / 00 / 0000</div>
+      <div class="clock-day" id="clockDay">HARI</div>
+      <div class="clock-zone">WIB • ASIA/JAKARTA</div>
+    </div>
+  </section>
+</main>
+
+<footer>TVRI OTT MONITORING • 31 channel • 4 channel utama berada di posisi kiri atas • Klik ⛶ pada channel untuk fullscreen.</footer>
+
+<script>
+const CHANNELS = [
+  {
+    "id": 1,
+    "name": "TVRI Nasional",
+    "slug": "Nasional",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Nasional/hls/Nasional.m3u8"
+  },
+  {
+    "id": 2,
+    "name": "TVRI DKI Jakarta",
+    "slug": "DKI",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/DKI/hls/DKI.m3u8"
+  },
+  {
+    "id": 3,
+    "name": "TVRI Sport HD",
+    "slug": "SportHD",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/SportHD/hls/SportHD.m3u8"
+  },
+  {
+    "id": 4,
+    "name": "TVRI World",
+    "slug": "TVRIWorld",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/TVRIWorld/hls/TVRIWorld.m3u8"
+  },
+  {
+    "id": 5,
+    "name": "TVRI Aceh",
+    "slug": "Aceh",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Aceh/hls/Aceh.m3u8"
+  },
+  {
+    "id": 6,
+    "name": "TVRI Ambon",
+    "slug": "Ambon",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Ambon/hls/Ambon.m3u8"
+  },
+  {
+    "id": 7,
+    "name": "TVRI Bangka Belitung",
+    "slug": "Babel",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Babel/hls/Babel.m3u8"
+  },
+  {
+    "id": 8,
+    "name": "TVRI Bali",
+    "slug": "Bali",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Bali/hls/Bali.m3u8"
+  },
+  {
+    "id": 9,
+    "name": "TVRI Bengkulu",
+    "slug": "Bengkulu",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Bengkulu/hls/Bengkulu.m3u8"
+  },
+  {
+    "id": 10,
+    "name": "TVRI Gorontalo",
+    "slug": "Gorontalo",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Gorontalo/hls/Gorontalo.m3u8"
+  },
+  {
+    "id": 11,
+    "name": "TVRI Jawa Barat",
+    "slug": "Jabar",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Jabar/hls/Jabar.m3u8"
+  },
+  {
+    "id": 12,
+    "name": "TVRI Jambi",
+    "slug": "Jambi",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Jambi/hls/Jambi.m3u8"
+  },
+  {
+    "id": 13,
+    "name": "TVRI Jawa Tengah",
+    "slug": "Jateng",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Jateng/hls/Jateng.m3u8"
+  },
+  {
+    "id": 14,
+    "name": "TVRI Jawa Timur",
+    "slug": "Jatim",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Jatim/hls/Jatim.m3u8"
+  },
+  {
+    "id": 15,
+    "name": "TVRI Yogyakarta",
+    "slug": "Jogjakarta",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Jogjakarta/hls/Jogjakarta.m3u8"
+  },
+  {
+    "id": 16,
+    "name": "TVRI Kalimantan Barat",
+    "slug": "Kalbar",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Kalbar/hls/Kalbar.m3u8"
+  },
+  {
+    "id": 17,
+    "name": "TVRI Kalimantan Selatan",
+    "slug": "Kalsel",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Kalsel/hls/Kalsel.m3u8"
+  },
+  {
+    "id": 18,
+    "name": "TVRI Kalimantan Tengah",
+    "slug": "Kalteng",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Kalteng/hls/Kalteng.m3u8"
+  },
+  {
+    "id": 19,
+    "name": "TVRI Kalimantan Timur",
+    "slug": "Kaltim",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Kaltim/hls/Kaltim.m3u8"
+  },
+  {
+    "id": 20,
+    "name": "TVRI Lampung",
+    "slug": "Lampung",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Lampung/hls/Lampung.m3u8"
+  },
+  {
+    "id": 21,
+    "name": "TVRI NTB",
+    "slug": "NTB",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/NTB/hls/NTB.m3u8"
+  },
+  {
+    "id": 22,
+    "name": "TVRI NTT",
+    "slug": "NTT",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/NTT/hls/NTT.m3u8"
+  },
+  {
+    "id": 23,
+    "name": "TVRI Papua",
+    "slug": "Papua",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Papua/hls/Papua.m3u8"
+  },
+  {
+    "id": 24,
+    "name": "TVRI Sulawesi Barat",
+    "slug": "Sulbar",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Sulbar/hls/Sulbar.m3u8"
+  },
+  {
+    "id": 25,
+    "name": "TVRI Sulawesi Selatan",
+    "slug": "Sulsel",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Sulsel/hls/Sulsel.m3u8"
+  },
+  {
+    "id": 26,
+    "name": "TVRI Sulawesi Tengah",
+    "slug": "Sulteng",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Sulteng/hls/Sulteng.m3u8"
+  },
+  {
+    "id": 27,
+    "name": "TVRI Sulawesi Tenggara",
+    "slug": "Sultra",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Sultra/hls/Sultra.m3u8"
+  },
+  {
+    "id": 28,
+    "name": "TVRI Sulawesi Utara",
+    "slug": "Sulut",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Sulut/hls/Sulut.m3u8"
+  },
+  {
+    "id": 29,
+    "name": "TVRI Sumatera Barat",
+    "slug": "Sumbar",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Sumbar/hls/Sumbar.m3u8"
+  },
+  {
+    "id": 30,
+    "name": "TVRI Sumatera Selatan",
+    "slug": "Sumsel",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Sumsel/hls/Sumsel.m3u8"
+  },
+  {
+    "id": 31,
+    "name": "TVRI Sumatera Utara",
+    "slug": "Sumut",
+    "url": "http://ott-balancer.tvri.go.id/live/eds/Sumut/hls/Sumut.m3u8"
+  }
+];
+const grid = document.getElementById("monitorGrid");
+const players = new Map();
+const state = new Map();
+let allPaused = false;
+
+function streamUrl(ch){
+  // Link sumber diberikan dalam HTTP.
+  // Jika halaman dibuka via HTTPS (mis. Vercel), gunakan HTTPS agar tidak terkena mixed-content blocking.
+  if(location.protocol === "https:") return ch.url.replace(/^http:/,"https:");
+  return ch.url;
+}
+
+function createTile(ch){
+  const tile=document.createElement("article");
+  tile.className="tile"; tile.dataset.id=ch.id;
+  tile.innerHTML=`
+    <video id="video-${ch.id}" muted autoplay playsinline></video>
+    <div class="tile-top"><div class="ch-label">${ch.name}</div><div class="status" id="status-${ch.id}">LOADING</div></div>
+    <div class="tile-error"><div><strong>SIGNAL LOST</strong><span>Stream tidak tersedia / network error</span></div></div>
+    <div class="tile-bottom">
+      <span class="tile-no">CH ${String(ch.id).padStart(2,"0")}</span>
+      <div class="tile-spacer"></div>
+      <button class="mini-btn reload-one" title="Reload">↻</button>
+      <button class="mini-btn full-one" title="Fullscreen">⛶</button>
+    </div>`;
+  return tile;
+}
+CHANNELS.forEach(ch=>grid.appendChild(createTile(ch)));
+
+function setState(id,value){
+  state.set(id,value);
+  const tile=document.querySelector(`.tile[data-id="${id}"]`);
+  const status=document.getElementById(`status-${id}`);
+  if(!tile||!status)return;
+  tile.classList.toggle("offline",value==="offline");
+  status.className="status "+(value==="online"?"online":value==="offline"?"offline":"");
+  status.textContent=value==="online"?"ONLINE":value==="offline"?"OFFLINE":"LOADING";
+  refreshCounters();
+}
+function refreshCounters(){
+  let online=0,offline=0,loading=0;
+  CHANNELS.forEach(ch=>{
+    const s=state.get(ch.id)||"loading";
+    if(s==="online")online++; else if(s==="offline")offline++; else loading++;
+  });
+  onlineCount.textContent=`${online} ONLINE`;
+  offlineCount.textContent=`${offline} OFFLINE`;
+  loadingCount.textContent=`${loading} LOADING`;
+}
+function destroyPlayer(id){
+  const p=players.get(id);
+  if(p&&p.hls){try{p.hls.destroy()}catch(e){}}
+  players.delete(id);
+}
+function loadChannel(ch){
+  destroyPlayer(ch.id);
+  setState(ch.id,"loading");
+  const video=document.getElementById(`video-${ch.id}`);
+  if(!video)return;
+  video.muted=true; video.volume=0; video.removeAttribute("src");
+  try{video.load()}catch(e){}
+
+  video.onplaying=()=>setState(ch.id,"online");
+  video.oncanplay=()=>setState(ch.id,"online");
+  video.onwaiting=()=>{if(state.get(ch.id)!=="offline")setState(ch.id,"loading")};
+  video.onstalled=()=>{if(state.get(ch.id)!=="offline")setState(ch.id,"loading")};
+  video.onerror=()=>setState(ch.id,"offline");
+
+  const url=streamUrl(ch);
+  if(video.canPlayType("application/vnd.apple.mpegurl")){
+    video.src=url; players.set(ch.id,{video,hls:null}); video.play().catch(()=>{}); return;
+  }
+  if(window.Hls&&Hls.isSupported()){
+    const hls=new Hls({
+      enableWorker:true,
+      lowLatencyMode:false,
+
+      // Mulai dari rendition terendah agar 31 stream lebih ringan.
+      startLevel:0,
+      capLevelToPlayerSize:true,
+
+      // Buffer dibuat lebih panjang supaya stream tidak mudah freeze.
+      maxBufferLength:20,
+      maxMaxBufferLength:35,
+      backBufferLength:5,
+      maxBufferHole:0.8,
+
+      // Sedikit lebih jauh dari live-edge = lebih stabil.
+      liveSyncDurationCount:5,
+      liveMaxLatencyDurationCount:12,
+
+      // Retry network/segment lebih agresif.
+      manifestLoadingTimeOut:15000,
+      manifestLoadingMaxRetry:6,
+      manifestLoadingRetryDelay:1000,
+      levelLoadingTimeOut:15000,
+      levelLoadingMaxRetry:6,
+      levelLoadingRetryDelay:1000,
+      fragLoadingTimeOut:20000,
+      fragLoadingMaxRetry:8,
+      fragLoadingRetryDelay:1000,
+
+      // Recovery saat decoder/browser tersendat.
+      nudgeOffset:0.15,
+      nudgeMaxRetry:8
+    });
+    players.set(ch.id,{video,hls});
+    hls.loadSource(url); hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED,()=>video.play().catch(()=>{}));
+    hls.on(Hls.Events.FRAG_BUFFERED,()=>{
+      setState(ch.id,"online");
+    });
+    let networkFailures = 0;
+    let mediaFailures = 0;
+
+    hls.on(Hls.Events.ERROR,(_,d)=>{
+      if(!d.fatal) return;
+
+      if(d.type===Hls.ErrorTypes.NETWORK_ERROR){
+        networkFailures++;
+        setState(ch.id,"loading");
+
+        try{
+          // Coba lanjutkan request HLS tanpa menghancurkan player.
+          hls.startLoad(-1);
+        }catch(e){}
+
+        // Bila gagal berkali-kali, restart hanya channel ini.
+        if(networkFailures >= 5){
+          networkFailures = 0;
+          setTimeout(()=>{
+            if(state.get(ch.id)!=="online") loadChannel(ch);
+          },2500);
+        }
+      }
+      else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
+        mediaFailures++;
+        setState(ch.id,"loading");
+
+        try{
+          hls.recoverMediaError();
+        }catch(e){}
+
+        // Recovery decoder level dua.
+        if(mediaFailures >= 3){
+          mediaFailures = 0;
+          try{
+            hls.swapAudioCodec();
+            hls.recoverMediaError();
+          }catch(e){
+            setTimeout(()=>loadChannel(ch),1800);
+          }
+        }
+      }
+      else{
+        setState(ch.id,"loading");
+        setTimeout(()=>loadChannel(ch),2500);
+      }
+    });
+  }else setState(ch.id,"offline");
+}
+function loadAll(){CHANNELS.forEach((ch,i)=>setTimeout(()=>loadChannel(ch),i*350))}
+
+document.querySelectorAll(".reload-one").forEach(btn=>btn.addEventListener("click",e=>{
+  e.stopPropagation(); const id=Number(btn.closest(".tile").dataset.id);
+  const ch=CHANNELS.find(c=>c.id===id); if(ch)loadChannel(ch);
+}));
+document.querySelectorAll(".full-one").forEach(btn=>btn.addEventListener("click",async e=>{
+  e.stopPropagation(); const tile=btn.closest(".tile");
+  try{if(!document.fullscreenElement)await tile.requestFullscreen();else await document.exitFullscreen()}catch(_){}
+}));
+reloadAll.addEventListener("click",loadAll);
+muteAll.addEventListener("click",()=>players.forEach(p=>{p.video.muted=true;p.video.volume=0}));
+pauseAll.addEventListener("click",e=>{
+  allPaused=!allPaused;
+  players.forEach(p=>allPaused?p.video.pause():p.video.play().catch(()=>{}));
+  e.currentTarget.textContent=allPaused?"▶ Resume All":"⏸ Pause All";
+});
+
+
+// Watchdog: jika video macet > 12 detik, restart hanya channel yang bermasalah.
+const lastPlaybackTime = new Map();
+const lastPlaybackCheck = new Map();
+
+setInterval(()=>{
+  CHANNELS.forEach(ch=>{
+    const p = players.get(ch.id);
+    if(!p || !p.video || p.video.paused) return;
+
+    const v = p.video;
+    const previous = lastPlaybackTime.get(ch.id);
+    const previousCheck = lastPlaybackCheck.get(ch.id) || Date.now();
+
+    if(previous !== undefined && Math.abs(v.currentTime - previous) < 0.05){
+      if(Date.now() - previousCheck > 12000){
+        setState(ch.id,"loading");
+        lastPlaybackCheck.set(ch.id,Date.now());
+        setTimeout(()=>loadChannel(ch),500);
+      }
+    }else{
+      lastPlaybackTime.set(ch.id,v.currentTime);
+      lastPlaybackCheck.set(ch.id,Date.now());
+    }
+  });
+},4000);
+
+
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible" && !allPaused){
+    players.forEach((p,id)=>{
+      if(p.video.paused){
+        p.video.play().catch(()=>{});
+      }
+    });
+  }
+});
+
+function updateClock(){
+  const now=new Date();
+  const tp=new Intl.DateTimeFormat("id-ID",{timeZone:"Asia/Jakarta",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).formatToParts(now);
+  const get=t=>tp.find(p=>p.type===t)?.value||"00";
+  clockHM.textContent=`${get("hour")}:${get("minute")}`;
+  clockS.textContent=`:${get("second")}`;
+  clockDate.textContent=new Intl.DateTimeFormat("id-ID",{timeZone:"Asia/Jakarta",day:"2-digit",month:"2-digit",year:"numeric"}).format(now).replace(/\//g," / ");
+  clockDay.textContent=new Intl.DateTimeFormat("id-ID",{timeZone:"Asia/Jakarta",weekday:"long"}).format(now).toUpperCase();
+}
+updateClock(); setInterval(updateClock,250);
+CHANNELS.forEach(ch=>state.set(ch.id,"loading")); refreshCounters(); loadAll();
+</script>
+</body>
+</html>
