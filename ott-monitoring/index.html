@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#04070d">
-<title>TVRI OTT MONITORING — 31 Channel</title>
+<title>TVRI OTT MONITORING — 36 Channel</title>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 <style>
 :root{
@@ -54,7 +54,7 @@ box-shadow:0 8px 22px rgba(0,0,0,.22);aspect-ratio:16/9}
 .ch-label{max-width:75%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 6px;border-radius:6px;background:rgba(0,0,0,.64);backdrop-filter:blur(8px);font-size:9px;font-weight:780}
 .status{display:flex;align-items:center;gap:4px;padding:4px 6px;border-radius:999px;background:rgba(0,0,0,.68);font-size:8px;font-weight:900;letter-spacing:.45px}
 .status:before{content:"";width:5px;height:5px;border-radius:50%;background:var(--loading)}
-.status.online:before{background:var(--online)}.status.offline:before{background:var(--offline)}
+.status.online:before{background:var(--online)}.status.offline:before{background:var(--offline)}.status.waiting:before{background:var(--blue)}
 .tile-bottom{position:absolute;z-index:7;left:0;right:0;bottom:0;display:flex;align-items:center;gap:5px;padding:22px 7px 6px;background:linear-gradient(transparent,rgba(0,0,0,.82));opacity:0;transition:.16s}
 .tile:hover .tile-bottom{opacity:1}
 .mini-btn{width:28px;height:26px;border:0;border-radius:6px;background:rgba(255,255,255,.12);cursor:pointer;display:grid;place-items:center;font-size:11px}
@@ -100,16 +100,16 @@ header{height:60px;padding:0 14px}.brand small{display:none}
 <header>
   <div class="brand">
     <div class="brand-mark"></div>
-    <div><b>TVRI OTT MONITORING</b><small>REALTIME HLS MULTIVIEW • 31 CHANNEL</small></div>
+    <div><b>TVRI OTT MONITORING</b><small>REALTIME HLS MULTIVIEW • 36 CHANNEL</small></div>
   </div>
   <div class="live-pill"><span class="live-dot"></span> LIVE MONITORING</div>
 </header>
 
 <section class="toolbar">
   <div class="summary">
-    <div class="counter total"><i></i><span id="totalCount">31 TOTAL</span></div>
+    <div class="counter total"><i></i><span id="totalCount">36 TOTAL</span></div>
     <div class="counter online"><i></i><span id="onlineCount">0 ONLINE</span></div>
-    <div class="counter loading"><i></i><span id="loadingCount">31 LOADING</span></div>
+    <div class="counter loading"><i></i><span id="loadingCount">36 LOADING</span></div>
     <div class="counter offline"><i></i><span id="offlineCount">0 OFFLINE</span></div>
   </div>
   <div class="actions">
@@ -131,7 +131,7 @@ header{height:60px;padding:0 14px}.brand small{display:none}
   </section>
 </main>
 
-<footer>TVRI OTT MONITORING • 31 channel • 4 channel utama berada di posisi kiri atas • Klik ⛶ pada channel untuk fullscreen.</footer>
+<footer>TVRI OTT MONITORING • 36 channel • 5 channel baru menunggu URL M3U8 • Klik ⛶ pada channel untuk fullscreen.</footer>
 
 <script>
 const CHANNELS = [
@@ -320,6 +320,36 @@ const CHANNELS = [
     "name": "TVRI Sumatera Utara",
     "slug": "Sumut",
     "url": "http://ott-balancer.tvri.go.id/live/eds/Sumut/hls/Sumut.m3u8"
+  },
+  {
+    "name": "TVRI Kalimantan Utara",
+    "slug": "Kaltara",
+    "url": "",
+    "id": 32
+  },
+  {
+    "name": "TVRI Banten",
+    "slug": "Banten",
+    "url": "",
+    "id": 33
+  },
+  {
+    "name": "TVRI Maluku Utara",
+    "slug": "Malut",
+    "url": "",
+    "id": 34
+  },
+  {
+    "name": "TVRI Kepulauan Riau",
+    "slug": "Kepri",
+    "url": "",
+    "id": 35
+  },
+  {
+    "name": "TVRI Papua Barat",
+    "slug": "Pabar",
+    "url": "",
+    "id": 36
   }
 ];
 const grid = document.getElementById("monitorGrid");
@@ -357,8 +387,8 @@ function setState(id,value){
   const status=document.getElementById(`status-${id}`);
   if(!tile||!status)return;
   tile.classList.toggle("offline",value==="offline");
-  status.className="status "+(value==="online"?"online":value==="offline"?"offline":"");
-  status.textContent=value==="online"?"ONLINE":value==="offline"?"OFFLINE":"LOADING";
+  status.className="status "+(value==="online"?"online":value==="offline"?"offline":value==="waiting"?"waiting":"");
+  status.textContent=value==="online"?"ONLINE":value==="offline"?"OFFLINE":value==="waiting"?"WAITING LINK":"LOADING";
   refreshCounters();
 }
 function refreshCounters(){
@@ -378,6 +408,10 @@ function destroyPlayer(id){
 }
 function loadChannel(ch){
   destroyPlayer(ch.id);
+  if(!ch.url){
+    setState(ch.id,"waiting");
+    return;
+  }
   setState(ch.id,"loading");
   const video=document.getElementById(`video-${ch.id}`);
   if(!video)return;
@@ -483,7 +517,7 @@ function loadChannel(ch){
     });
   }else setState(ch.id,"offline");
 }
-function loadAll(){CHANNELS.forEach((ch,i)=>setTimeout(()=>loadChannel(ch),i*350))}
+function loadAll(){CHANNELS.filter(ch=>ch.url).forEach((ch,i)=>setTimeout(()=>loadChannel(ch),i*350))}
 
 document.querySelectorAll(".reload-one").forEach(btn=>btn.addEventListener("click",e=>{
   e.stopPropagation(); const id=Number(btn.closest(".tile").dataset.id);
@@ -549,7 +583,7 @@ function updateClock(){
   clockDay.textContent=new Intl.DateTimeFormat("id-ID",{timeZone:"Asia/Jakarta",weekday:"long"}).format(now).toUpperCase();
 }
 updateClock(); setInterval(updateClock,250);
-CHANNELS.forEach(ch=>state.set(ch.id,"loading")); refreshCounters(); loadAll();
+CHANNELS.forEach(ch=>state.set(ch.id,ch.url?"loading":"waiting")); refreshCounters(); loadAll();
 </script>
 </body>
 </html>
