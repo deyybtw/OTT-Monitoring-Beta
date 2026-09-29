@@ -186,6 +186,51 @@ footer { display:none !important; }
   .clock-tile { grid-column:1 / span 2 !important; grid-row:auto !important; min-height:180px !important; }
 }
 
+
+/* ===== DRAGGABLE CHANNEL GRID ===== */
+.tile[data-id] {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tile[data-id]:active {
+  cursor: grabbing;
+}
+
+.tile.dragging {
+  opacity: .38;
+  transform: scale(.97);
+  outline: 2px dashed rgba(54,169,255,.9);
+  outline-offset: -2px;
+  z-index: 50;
+}
+
+.tile.drag-over {
+  outline: 2px solid rgba(54,169,255,.95);
+  box-shadow: 0 0 0 3px rgba(54,169,255,.18), 0 8px 22px rgba(0,0,0,.22);
+}
+
+.clock-tile {
+  cursor: default !important;
+}
+
+.drag-hint {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  color:#8da0b6;
+  font-size:9px;
+  padding:0 4px;
+  white-space:nowrap;
+}
+
+@media (max-width:900px) {
+  .tile[data-id] {
+    cursor: default;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -205,6 +250,8 @@ footer { display:none !important; }
     <div class="counter offline"><i></i><span id="offlineCount">0 OFFLINE</span></div>
   </div>
   <div class="actions">
+    <span class="drag-hint">↔ Drag channel untuk pindah posisi</span>
+    <button class="action" id="resetLayout">⟲ Reset Layout</button>
     <button class="action" id="reloadAll">↻ Reload All</button>
     <button class="action" id="muteAll">🔇 Mute All</button>
     <button class="action" id="pauseAll">⏸ Pause All</button>
@@ -414,33 +461,33 @@ const CHANNELS = [
     "url": "http://ott-balancer.tvri.go.id/live/eds/Sumut/hls/Sumut.m3u8"
   },
   {
+    "name": "TVRI Papua Barat",
+    "slug": "Pabar",
+    "url": "https://ott-balancer.tvri.go.id/live/eds/Pabar/hls/Pabar.m3u8",
+    "id": 32
+  },
+  {
     "name": "TVRI Kalimantan Utara",
     "slug": "Kaltara",
     "url": "",
-    "id": 32
+    "id": 33
   },
   {
     "name": "TVRI Banten",
     "slug": "Banten",
     "url": "",
-    "id": 33
+    "id": 34
   },
   {
     "name": "TVRI Maluku Utara",
     "slug": "Malut",
     "url": "",
-    "id": 34
+    "id": 35
   },
   {
     "name": "TVRI Kepulauan Riau",
     "slug": "Kepri",
     "url": "",
-    "id": 35
-  },
-  {
-    "name": "TVRI Papua Barat",
-    "slug": "Pabar",
-    "url": "https://ott-balancer.tvri.go.id/live/eds/Pabar/hls/Pabar.m3u8",
     "id": 36
   }
 ];
@@ -458,7 +505,7 @@ function streamUrl(ch){
 
 function createTile(ch){
   const tile=document.createElement("article");
-  tile.className="tile"; tile.dataset.id=ch.id;
+  tile.className="tile"; tile.dataset.id=ch.id; tile.draggable=true;
   tile.innerHTML=`
     <video id="video-${ch.id}" muted autoplay playsinline></video>
     <div class="tile-top"><div class="ch-label">${ch.name}</div><div class="status" id="status-${ch.id}">LOADING</div></div>
@@ -611,10 +658,127 @@ function loadChannel(ch){
 }
 function loadAll(){CHANNELS.filter(ch=>ch.url).forEach((ch,i)=>setTimeout(()=>loadChannel(ch),i*350))}
 
+
+// ===== DRAG & DROP CHANNEL ORDER =====
+const LAYOUT_STORAGE_KEY = "tvri-ott-monitoring-layout-v1";
+let draggedTile = null;
+
+function getChannelTiles(){
+  return [...grid.querySelectorAll(".tile[data-id]")];
+}
+
+function saveLayoutOrder(){
+  const order = getChannelTiles().map(tile => Number(tile.dataset.id));
+  try{
+    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(order));
+  }catch(e){}
+}
+
+function applySavedLayout(){
+  let order = null;
+  try{
+    order = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) || "null");
+  }catch(e){
+    order = null;
+  }
+
+  if(!Array.isArray(order) || !order.length) return;
+
+  const tileMap = new Map(
+    getChannelTiles().map(tile => [Number(tile.dataset.id), tile])
+  );
+
+  order.forEach(id => {
+    const tile = tileMap.get(Number(id));
+    if(tile) grid.appendChild(tile);
+  });
+
+  // Tambahkan channel baru yang belum pernah ada di layout tersimpan.
+  getChannelTiles().forEach(tile => {
+    if(!order.includes(Number(tile.dataset.id))){
+      grid.appendChild(tile);
+    }
+  });
+}
+
+function clearDragState(){
+  getChannelTiles().forEach(tile => {
+    tile.classList.remove("dragging","drag-over");
+  });
+  draggedTile = null;
+}
+
+function setupDraggableTiles(){
+  getChannelTiles().forEach(tile => {
+    tile.draggable = true;
+
+    tile.addEventListener("dragstart", e => {
+      draggedTile = tile;
+      tile.classList.add("dragging");
+      if(e.dataTransfer){
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", tile.dataset.id);
+      }
+    });
+
+    tile.addEventListener("dragend", () => {
+      clearDragState();
+      saveLayoutOrder();
+    });
+
+    tile.addEventListener("dragover", e => {
+      e.preventDefault();
+      if(!draggedTile || draggedTile === tile) return;
+      if(e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      tile.classList.add("drag-over");
+    });
+
+    tile.addEventListener("dragleave", () => {
+      tile.classList.remove("drag-over");
+    });
+
+    tile.addEventListener("drop", e => {
+      e.preventDefault();
+      tile.classList.remove("drag-over");
+      if(!draggedTile || draggedTile === tile) return;
+
+      const rect = tile.getBoundingClientRect();
+      const insertAfter = e.clientX > rect.left + rect.width / 2;
+
+      if(insertAfter){
+        tile.after(draggedTile);
+      }else{
+        tile.before(draggedTile);
+      }
+
+      saveLayoutOrder();
+    });
+  });
+}
+
+applySavedLayout();
+setupDraggableTiles();
+
+const resetLayoutBtn = document.getElementById("resetLayout");
+if(resetLayoutBtn){
+  resetLayoutBtn.addEventListener("click",()=>{
+    try{
+      localStorage.removeItem(LAYOUT_STORAGE_KEY);
+    }catch(e){}
+    location.reload();
+  });
+}
+
 document.querySelectorAll(".reload-one").forEach(btn=>btn.addEventListener("click",e=>{
   e.stopPropagation(); const id=Number(btn.closest(".tile").dataset.id);
   const ch=CHANNELS.find(c=>c.id===id); if(ch)loadChannel(ch);
 }));
+
+document.querySelectorAll(".mini-btn").forEach(btn=>{
+  btn.addEventListener("mousedown", e => e.stopPropagation());
+  btn.addEventListener("dragstart", e => e.preventDefault());
+});
+
 document.querySelectorAll(".full-one").forEach(btn=>btn.addEventListener("click",async e=>{
   e.stopPropagation(); const tile=btn.closest(".tile");
   try{if(!document.fullscreenElement)await tile.requestFullscreen();else await document.exitFullscreen()}catch(_){}
