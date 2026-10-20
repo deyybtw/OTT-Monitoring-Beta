@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#04070d">
-<title>TVRI OTT MONITORING — 36 Channel</title>
+<title>TVRI OTT MONITORING — 37 Channel</title>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 <style>
 :root{
@@ -237,16 +237,16 @@ footer { display:none !important; }
 <header>
   <div class="brand">
     <div class="brand-mark"></div>
-    <div><b>TVRI OTT MONITORING</b><small>REALTIME HLS MULTIVIEW • 36 CHANNEL</small></div>
+    <div><b>TVRI OTT MONITORING</b><small>REALTIME HLS MULTIVIEW • 37 CHANNEL</small></div>
   </div>
   <div class="live-pill"><span class="live-dot"></span> LIVE MONITORING</div>
 </header>
 
 <section class="toolbar">
   <div class="summary">
-    <div class="counter total"><i></i><span id="totalCount">36 TOTAL</span></div>
+    <div class="counter total"><i></i><span id="totalCount">37 TOTAL</span></div>
     <div class="counter online"><i></i><span id="onlineCount">0 ONLINE</span></div>
-    <div class="counter loading"><i></i><span id="loadingCount">36 LOADING</span></div>
+    <div class="counter loading"><i></i><span id="loadingCount">37 LOADING</span></div>
     <div class="counter offline"><i></i><span id="offlineCount">0 OFFLINE</span></div>
   </div>
   <div class="actions">
@@ -489,6 +489,12 @@ const CHANNELS = [
     "slug": "Kepri",
     "url": "",
     "id": 36
+  },
+  {
+    "id": 37,
+    "name": "TVRI Riau",
+    "slug": "Riau",
+    "url": "https://ott-balancer.tvri.go.id/live/eds/Riau/hls/Riau.m3u8"
   }
 ];
 const grid = document.getElementById("monitorGrid");
