@@ -780,9 +780,46 @@ document.querySelectorAll(".mini-btn").forEach(btn=>{
 });
 
 document.querySelectorAll(".full-one").forEach(btn=>btn.addEventListener("click",async e=>{
-  e.stopPropagation(); const tile=btn.closest(".tile");
-  try{if(!document.fullscreenElement)await tile.requestFullscreen();else await document.exitFullscreen()}catch(_){}
+  e.stopPropagation();
+  const tile=btn.closest(".tile");
+  const video=tile ? tile.querySelector("video") : null;
+
+  try{
+    if(!document.fullscreenElement){
+      if(video){
+        video.muted=false;
+        video.volume=1;
+        video.play().catch(()=>{});
+      }
+      await tile.requestFullscreen();
+    }else{
+      await document.exitFullscreen();
+    }
+  }catch(_){}
 }));
+
+
+// Fullscreen audio behavior:
+// - fullscreen: audio ON untuk channel yang dipilih
+// - exit fullscreen: semua channel kembali mute
+document.addEventListener("fullscreenchange",()=>{
+  if(document.fullscreenElement){
+    const fsVideo=document.fullscreenElement.querySelector?.("video");
+    if(fsVideo){
+      fsVideo.muted=false;
+      fsVideo.volume=1;
+      fsVideo.play().catch(()=>{});
+    }
+  }else{
+    players.forEach(p=>{
+      if(p && p.video){
+        p.video.muted=true;
+        p.video.volume=0;
+      }
+    });
+  }
+});
+
 reloadAll.addEventListener("click",loadAll);
 muteAll.addEventListener("click",()=>players.forEach(p=>{p.video.muted=true;p.video.volume=0}));
 pauseAll.addEventListener("click",e=>{
